@@ -43,7 +43,7 @@ Again, there is a lot of possible information that can be provided on this topic
     
     -   Talk about tuning grids
     
-    -   Talk about differnt forms of resampling
+    -   Talk about different forms of resampling
 
 <br><br>
 
@@ -481,7 +481,7 @@ ctrl <- control_grid(verbose = FALSE, save_pred = TRUE)
 
 This code tests your models on the grid based on the amount of resampling and hyperparemeters you set.  
 
-**Warning these can take a while to run so I would start small to make sure ut doesn't break**
+**Warning these can take a while to run so I would start small to make sure it doesn't break**
 
 
 ```{r,}
@@ -517,7 +517,7 @@ formula_res %>%
 
 This collects the accuracy of the models across our bootstraps 
 
-You can see that each of the ten models within each bootstrap usses the same hyperparameters
+You can see that each of the ten models within each bootstrap uses the same hyperparameters
 
 
 ```{r}

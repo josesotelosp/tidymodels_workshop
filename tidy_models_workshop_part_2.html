@@ -399,7 +399,7 @@ for all of your data science needs!</p>
 <ul>
 <li><p>Experiment with different tuning parameters</p></li>
 <li><p>Talk about tuning grids</p></li>
-<li><p>Talk about differnt forms of resampling</p></li>
+<li><p>Talk about different forms of resampling</p></li>
 </ul></li>
 </ul>
 <p><br><br></p>
@@ -1019,7 +1019,7 @@ ctrl &lt;- control_grid(verbose = FALSE, save_pred = TRUE)</code></pre>
 <p>This code tests your models on the grid based on the amount of
 resampling and hyperparemeters you set.</p>
 <p><strong>Warning these can take a while to run so I would start small
-to make sure ut doesn’t break</strong></p>
+to make sure it doesn’t break</strong></p>
 <pre class="r"><code>formula_res &lt;-
   tune_grid(random_forest_model_tune,
     random_forest_recipe,
@@ -1063,7 +1063,7 @@ change that later when we set out grid)</p>
 ##  9     7    29 roc_auc binary         0.840 Preprocessor1_Model09
 ## 10     5     5 roc_auc binary         0.841 Preprocessor1_Model10</code></pre>
 <p>This collects the accuracy of the models across our bootstraps</p>
-<p>You can see that each of the ten models within each bootstrap usses
+<p>You can see that each of the ten models within each bootstrap uses
 the same hyperparameters</p>
 <pre class="r"><code>estimates &lt;- collect_metrics(formula_res)
 estimates</code></pre>
