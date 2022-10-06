@@ -1,0 +1,734 @@
+---
+title: "Tidy Models Workshop Part Two"
+author: "Jose Sotelo"
+date: "10/6/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,warning = F,message = F)
+```
+
+<br><br>
+
+# **Welcome Back Everyone!**
+
+<br><br>
+
+**The goal of today is recap what we learned on Tuesday and further our understanding of Tidymodels**
+
+Again, there is a lot of possible information that can be provided on this topic and this workshop isn't meant to exhaust those resources. If you have questions throughout the workshop you can type them in the chat or I will be happy to meet with you afterwords. I am also willing to talk about the subject either through email [josesotelo2023\@u.northwestern.edu](mailto:josesotelo2023@u.northwestern.edu){.email} or if you would like some help using Tidymodels for your own data, we do free [consults](https://app.smartsheet.com/b/form/2f2ec327e6164f83b588b7bbe2e2b56f) for all of your data science needs!
+
+<br><br>
+
+## Agenda for today
+
+-   Recap of what we went over on Tuesday
+
+-   Set up a simple Classification model
+
+    -   Prep data
+
+    -   Create recipe
+
+    -   "Bake"
+
+    -   Fitting test data
+
+    -   Assessing fit
+
+-   Try Other types of Classification Models
+
+    -   Experiment with different tuning parameters 
+    
+    -   Talk about tuning grids
+    
+    -   Talk about differnt forms of resampling
+
+<br><br>
+
+## **Overview of Background**
+
+<br><br>
+
+The tidymodels framework is a collection of packages for modeling and machine learning using tidyverse principles.
+
+
+<br><br>
+
+
+![](images/tidymodels_packages.png)
+
+<br><br>
+
+### **We are Focused on Predictive Models**
+
+#### **Predictive Model**
+
+Sometimes data are modeled to produce the most accurate prediction possible for new data. Here, the primary goal is that the predicted values have the highest possible fidelity to the true value of the new data.
+
+
+<br><br>
+
+### **Today We are focused on Supervised Classification Models**
+
+<br><br>
+
+
+**Supervised models** are those that have an outcome variable. Linear regression, neural networks, and numerous other methodologies fall into this category.
+
+**Classification** predicts an outcome that is an ordered or unordered set of qualitative values.
+
+<br><br>
+
+
+### **Reminder of the Tidymodels Process**
+
+
+![](images/tidy_models_basics.png)
+
+
+<br><br>
+
+## **Load Packages and Set Seed**
+
+<br><br>
+
+```{r,warning=FALSE,message=FALSE}
+
+# Load packages here!
+library(tidymodels)
+library(tidyverse)
+library(janitor)
+library(skimr)
+library(vip)
+library(yardstick)
+library(ranger)
+library(glmnet)
+library(mlbench)
+library(nnet)
+
+# Set seed here!
+
+set.seed(1192)
+
+```
+
+# **Classification Model**
+
+<br><br>
+
+For our classification model, where our outcomes are binary, we will be using the titanic data. Our goal is to predict which passengers would survive the [Titanic shipwreck](https://en.wikipedia.org/wiki/Titanic).
+
+Lets Load the data from `data/titanic.csv` into *R* and familiarize ourselves with the variables it contains using the codebook (`data/titanic_codebook.txt`).
+
+Notice that `survived` and `pclass` should be changed to factors. When changing `survived` to a factor, you may want to reorder the factor so that *"Yes"* is the first level.
+
+<br><br>
+
+```{r}
+titanic<-read_csv(file="data/titanic.csv")%>%
+  clean_names()%>%
+  mutate(pclass=factor(pclass),
+         survived=factor(survived,levels=c("Yes","No")))
+```
+
+## **Look at the Distribution of our Outcome Variable**
+
+<br><br>
+
+Using the full data set, explore/describe the distribution of the outcome variable `survived`.
+
+Perform a skim of the training data and note any potential issues such as missingness.
+
+```{r}
+
+ggplot(titanic,aes(survived))+
+  geom_bar()+theme_minimal()
+
+skim_without_charts(titanic)
+
+```
+
+<br><br>
+
+## **Split our data**
+
+<br><br>
+
+Lets use stratified sampling. We should choose the proportions to split the data into. Verify that the training and testing data sets have the appropriate number of observations.
+
+Why is it a good idea to use stratified sampling for this data?
+
+```{r}
+titanic_split<-initial_split(titanic,prop = .70,strata = survived)
+
+titanic_split
+
+titanic_test<-testing(titanic_split)
+
+titanic_train<-training(titanic_split)
+```
+
+
+```{r}
+ggplot(titanic_train,aes(survived))+
+  geom_bar()+theme_minimal()
+
+```
+
+**Try Different splits and stratification!**
+
+How would this impact your model?
+
+Make sure to remove eval = false
+
+
+```{r,eval=FALSE}
+titanic_split_2<-initial_split(titanic,prop = ,strata = )
+
+titanic_split_2
+
+titanic_test_2<-testing(titanic_split)
+
+titanic_train_2<-training(titanic_split)
+```
+
+
+```{r,eval=FALSE}
+ggplot(titanic_train_2,aes(survived))+
+  geom_bar()+theme_minimal()
+
+```
+
+
+
+<br><br>
+
+## **Which Models can be used with Classification Data?**
+
+<br><br>
+
+```{r}
+
+show_engines("rand_forest")
+
+
+
+show_engines("mars")
+
+
+```
+
+<br><br>
+
+## **Logistic regression recipe**
+
+<br><br>
+
+Using the training data, create and store a recipe setting `survived` as the outcome and using the following predictors: ticket class, sex, age, number of siblings or spouses aboard, number of parents or children aboard, and passenger fare.
+
+Recall that there were missing values for `age`. To deal with this, add an imputation step using `step_impute_linear()`.
+
+```{r}
+logistic_recipe_test<-recipe(survived~pclass+sex+age+sib_sp+parch+fare,data = titanic_train)%>%
+  step_impute_linear(age)
+
+```
+
+<br><br>
+
+Next, use `step_dummy()` to **dummy** encode categorical predictors of class and sex.
+
+```{r,eval=FALSE}
+logistic_recipe<-recipe(survived~pclass+sex+age+sib_sp+parch+fare,data = titanic_train)%>%
+  step_impute_linear(age)%>%
+  step_dummy()
+
+```
+
+<br><br>
+
+How would you add an interaction with age and fare as well as sex and fare using `step_interact` and standardize using `step_normalize`?
+
+```{r,eval=FALSE}
+
+logi_recipe_2<-recipe(survived~pclass+sex+age+sib_sp+parch+fare,data = titanic_train)%>%
+  step_impute_linear(age)%>%
+  step_dummy()%>%
+  step_interact()%>%
+  step_normalize()
+
+
+
+```
+
+<br><br>
+
+**This is what your recipe should look like!**
+
+```{r}
+logistic_recipe<-recipe(survived~pclass+sex+age+sib_sp+parch+fare,data = titanic_train)%>%
+  step_impute_linear(age)%>%
+  step_dummy(pclass,sex)%>%
+  step_interact(~age:fare+starts_with("sex"):fare)%>%
+  step_normalize(all_predictors())
+
+
+```
+
+## **Random Forrest recipe**
+
+<br><br>
+
+```{r}
+random_forest_recipe<-recipe(survived~pclass+sex+age+sib_sp+parch+fare,data = titanic_train)%>%
+  step_impute_linear(age)%>%
+  step_dummy(pclass,sex,one_hot = TRUE)%>%
+  step_interact(~age:fare+starts_with("sex"):fare)%>%
+  step_normalize(all_predictors())
+```
+
+<br><br>
+
+## **Bake Both Recipes** 
+
+<br><br>
+
+How does one hot change your variables?
+
+```{r}
+
+logistic_recipe%>%
+  prep()%>%
+  bake(new_data=NULL)%>%
+  head()
+
+
+
+
+random_forest_recipe%>%
+  prep()%>%
+  bake(new_data=NULL)%>%
+  head()
+
+
+```
+
+<br><br>
+
+## **Fit your Logistic Model**
+
+<br><br>
+
+```{r}
+logistic_model<-logistic_reg()%>%
+  set_engine("glm")%>%
+  set_mode("classification")
+
+
+logistic_workflow<-workflow()%>%
+  add_model(logistic_model)%>%
+  add_recipe(logistic_recipe)
+
+
+logistic_fit<-logistic_workflow%>%
+  fit(data=titanic_train)
+
+tidy(logistic_fit)
+
+```
+
+<br><br>
+
+# **Fit a Random Forest with no Hyper-parameters**
+
+<br><br>
+
+```{r}
+random_forest_model<-rand_forest()%>%
+  set_engine("ranger")%>%
+  set_mode("classification")
+
+
+random_forest_workflow<-workflow()%>%
+  add_model(random_forest_model)%>%
+  add_recipe(random_forest_recipe)
+
+
+random_forest_fit<-random_forest_workflow%>%
+  fit(data=titanic_train)
+
+
+
+```
+
+<br><br>
+
+## **Fit a Second Random Forest with Hyper-parameters**
+
+<br><br>
+
+```{r}
+
+random_forest_model_2<-rand_forest(mtry = 8,trees =1000,min_n = 4)%>%
+  set_engine("ranger")%>%
+  set_mode("classification")
+
+
+random_forest_workflow_2<-workflow()%>%
+  add_model(random_forest_model_2)%>%
+  add_recipe(random_forest_recipe)
+
+
+random_forest_fit_2<-random_forest_workflow_2%>%
+  fit(data=titanic_train)
+
+
+```
+
+
+
+
+
+
+<br><br>
+
+# **Which Model did Best?**
+
+<br><br>
+
+```{r}
+model_assesment<-logistic_fit%>%
+  predict(new_data=titanic_test)%>%
+  bind_cols(titanic_test%>%
+              select(survived))%>%
+  accuracy(truth=survived,estimate=.pred_class)%>%
+  mutate(model="Logistic Regression")
+
+model_assesment2<-random_forest_fit%>%
+  predict(new_data=titanic_test)%>%
+  bind_cols(titanic_test%>%
+              select(survived))%>%
+  accuracy(truth=survived,estimate=.pred_class)%>%
+  mutate(model="Random Forrest 1")%>%
+  bind_rows(model_assesment)
+
+model_assesment3<-random_forest_fit_2%>%
+  predict(new_data=titanic_test)%>%
+  bind_cols(titanic_test%>%
+              select(survived))%>%
+  accuracy(truth=survived,estimate=.pred_class)%>%
+  mutate(model="Random Forrest 2")%>%
+  bind_rows(model_assesment2)
+
+model_assesment3%>%
+  arrange(-.estimate)
+
+```
+
+
+# **Model tuning via grid search**
+
+
+Instead of trying lots of different hyperparameters to find the best model we can also do a grid search!
+
+
+
+```{r}
+random_forest_model_tune<- rand_forest(mtry = tune(), trees = 1000, min_n = tune()) %>%
+    set_mode("classification") %>% 
+  set_engine("ranger", importance = "impurity")
+
+
+random_forest_workflow_tune<-workflow()%>%
+  add_model(random_forest_model_tune)%>%
+  add_recipe(random_forest_recipe)
+
+
+random_forest_fit_tune<-random_forest_workflow_tune%>%
+  fit(data=titanic_train)
+```
+
+
+After we set our models we have to get ready for our search 
+
+Here we:
+
+Do a resampling of our data - for this we are doing simple bootstrapping but there are many ways of resampling like cross validating which we will explore next 
+
+
+Set the metric that we want to use. 
+
+We are also set our grid control to save the predictions we are making. 
+
+In this case we are not setting a grid so the hyper parameters that we are tuning will be random within the possible range. 
+
+```{r}
+
+
+titanic_rs <- bootstraps(titanic_train, times = 5)
+
+
+roc_vals <- metric_set(roc_auc)
+
+
+
+ctrl <- control_grid(verbose = FALSE, save_pred = TRUE)
+
+
+```
+
+This code tests your models on the grid based on the amount of resampling and hyperparemeters you set.  
+
+**Warning these can take a while to run so I would start small to make sure ut doesn't break**
+
+
+```{r,}
+
+
+formula_res <-
+  tune_grid(random_forest_model_tune,
+    random_forest_recipe,
+    resamples = titanic_rs,
+    metrics = roc_vals,
+    control = ctrl
+  )
+
+
+formula_res
+```
+
+
+Here we can see the accuracy for each individual model within one of our bootstraps out of the five total
+
+Within each of the 5 bootstraps it defaults to ten models (we can change that later when we set out grid)
+
+```{r}
+
+formula_res %>% 
+  select(.metrics) %>% 
+  slice(1) %>% 
+  pull(1)
+
+
+```
+
+
+This collects the accuracy of the models across our bootstraps 
+
+You can see that each of the ten models within each bootstrap usses the same hyperparameters
+
+
+```{r}
+
+estimates <- collect_metrics(formula_res)
+estimates
+
+```
+
+
+This shows us the best models in that we made and gives us an idea of the types of hyperparameters that we might want to be using
+
+```{r}
+show_best(formula_res, metric = "roc_auc")
+```
+
+
+This shows us how our models would predict our data 
+
+```{r}
+collect_predictions(formula_res)%>%
+  head()
+```
+This shows the accuracy of the different hyperparameters tuning 
+
+```{r}
+
+autoplot(formula_res, metric = "roc_auc")
+
+```
+
+
+A graphic representation of our average predictions across the variable age
+
+```{r}
+
+augment(formula_res) %>%
+  ggplot(aes(age, .pred_Yes, color = survived)) +
+  geom_point() +
+  facet_wrap(~survived)+
+  theme_minimal()
+
+```
+
+
+Now try running a random forest with the suggested hyperparameters 
+
+```{r}
+
+random_forest_model_refined<-rand_forest(mtry = 2,trees =1000,min_n = 30)%>%
+  set_engine("ranger", importance = "impurity")%>%
+  set_mode("classification")
+
+
+random_forest_workflow_refined<-workflow()%>%
+  add_model(random_forest_model_refined)%>%
+  add_recipe(random_forest_recipe)
+
+
+random_forest_fit_refined<-random_forest_workflow_refined%>%
+  fit(data=titanic_train)
+
+
+```
+
+```{r}
+
+
+fit<-extract_fit_engine(random_forest_fit_refined)
+
+vip(fit)
+
+```
+
+
+```{r}
+
+model_assesment4<-random_forest_fit_refined%>%
+  predict(new_data=titanic_test)%>%
+  bind_cols(titanic_test%>%
+              select(survived))%>%
+  accuracy(truth=survived,estimate=.pred_class)%>%
+  mutate(model="Random Forrest refined bootstrap")%>%
+  bind_rows(model_assesment3)
+
+model_assesment4%>%
+  arrange(-.estimate)
+
+```
+
+#  **Now lets try to do resampling through cross validation!**
+
+
+This time lets tune all three of our hyperparameters 
+
+```{r}
+
+model_cv <- 
+  rand_forest(mtry = tune(), trees = tune(), min_n = tune()) %>% 
+  set_engine("ranger", importance = "impurity") %>% 
+  set_mode("classification")
+
+```
+
+This time lets set a regular tuning grid 
+
+```{r}
+
+
+
+grid_rf<- grid_random(
+  mtry() %>% range_set(c( 1,  12)),
+  trees() %>% range_set(c( 500, 2000)), 
+  min_n() %>% range_set(c(2,  10)),
+  size = 10)
+
+
+grid_rf
+
+
+```
+
+Here we create a new workflow for the model we just made
+
+```{r}
+
+wkfl_cv <- 
+  workflow() %>% 
+  add_recipe(random_forest_recipe) %>% 
+  add_model(model_cv)
+
+
+```
+
+Here we create the folds - Here we create five
+
+*
+
+![](images/resampling.svg)
+
+```{r}
+
+cv_folds <- vfold_cv(titanic_train, v = 5)
+cv_folds
+
+```
+
+Here we use what we made to run the different models on our folds 
+
+**Again be careful here because this can take some time so start small to make sure it doesn't break**
+
+```{r}
+
+rf_fit <- tune_grid(
+  wkfl_cv,
+  resamples = cv_folds,
+  grid = grid_rf,
+  metrics = roc_vals,
+  control = ctrl 
+)
+
+
+```
+
+
+```{r}
+collect_metrics(rf_fit)
+```
+
+
+```{r}
+autoplot(rf_fit, metric = "roc_auc")
+```
+
+
+```{r}
+show_best(rf_fit, metric = "roc_auc", maximize = TRUE)
+```
+
+
+```{r}
+select_best(rf_fit, metric = "roc_auc", maximize = TRUE)
+
+
+```
+
+
+```{r}
+tuned_model <-
+  wkfl_cv %>% 
+  finalize_workflow(select_best(rf_fit, metric = "roc_auc", maximize = TRUE)) %>% 
+  fit(data = titanic_train)
+```
+
+
+```{r}
+model_assesment5<-tuned_model%>%
+  predict(new_data=titanic_test)%>%
+  bind_cols(titanic_test%>%
+              select(survived))%>%
+  accuracy(truth=survived,estimate=.pred_class)%>%
+  mutate(model="Random Forrest refined cross validation")%>%
+  bind_rows(model_assesment4)
+
+model_assesment5%>%
+  arrange(-.estimate)
+```
+
+
+
+Thank you all for coming this week and feel free to stay around or email me if you have any questions!
+
+
+
